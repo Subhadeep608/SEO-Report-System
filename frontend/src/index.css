@@ -1,0 +1,17 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-surface text-ink font-body antialiased;
+}
+
+::selection {
+  @apply bg-accent/20;
+}
+
+.focus-ring {
+  @apply outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent;
+}
