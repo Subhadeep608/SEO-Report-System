@@ -7,7 +7,7 @@ import UserDashboard from "./pages/UserDashboard";
 
 function HomeRedirect() {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/seo/login" replace />;
   if (user.role === "admin") return <Navigate to="/admin" replace />;
   return <Navigate to="/dashboard" replace />;
 }
@@ -18,7 +18,7 @@ export default function App() {
       <BrowserRouter basename="/admin">
         <Routes>
           <Route path="/" element={<HomeRedirect />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/seo/login" element={<Login />} />
           <Route
             path="/seo"
             element={
