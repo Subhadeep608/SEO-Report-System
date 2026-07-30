@@ -3,7 +3,7 @@ import api from "../api/axios";
 import { useAuth } from "../context/AuthContext";
 import { Button, Input, Select, Card, ErrorText } from "../components/ui";
 
-const CATEGORY_OPTIONS = ["Development", "Design", "Testing", "Research", "Content", "Other"];
+const CATEGORY_OPTIONS = ["Blog Submission", "Image Submission", "Social Bookmarking", "PDF Submission", "Business Listing", "Profile Creation"];
 const TABS = [
   { id: "submit", label: "Submit Report" },
   { id: "history", label: "My Reports" },
