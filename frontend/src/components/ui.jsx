@@ -39,6 +39,19 @@ export function Select({ label, className = "", children, ...props }) {
     </label>
   );
 }
+export function textarea({ label, className = "", children, ...props }) {
+  return (
+    <label className="block">
+      {label && <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/60">{label}</span>}
+      <textarea
+        className={`w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-orange-500 focus:ring-1 focus:ring-orange-500 focus:outline-none${className}`}
+        {...props}
+      >
+        {children}
+      </textarea>
+    </label>
+  );
+}
 
 export function Card({ children, className = "" }) {
   return (

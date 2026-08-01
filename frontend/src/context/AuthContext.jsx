@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import api from "../api/axios";
 
 const AuthContext = createContext(null);
@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
       const res = await api.post("/auth/login", { loginId, password });
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("authUser", JSON.stringify(res.data.user));
+      localStorage.setItem("loginTime", Date.now().toString());
       setUser(res.data.user);
       return res.data.user;
     } catch (err) {
@@ -32,8 +33,22 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("authUser");
+    localStorage.removeItem("loginTime");
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
+    const checkExpiry = () => {
+      const loginTime = localStorage.getItem("loginTime");
+      if (loginTime && Date.now() - Number(loginTime) > SESSION_DURATION_MS) {
+        logout();
+      }
+    };
+    checkExpiry();
+    const interval = setInterval(checkExpiry, 60 * 1000); // re-check every minute
+    return () => clearInterval(interval);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, loading, error }}>

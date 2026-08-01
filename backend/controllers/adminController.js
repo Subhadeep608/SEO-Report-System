@@ -1,21 +1,21 @@
 const User = require("../models/User");
 const Project = require("../models/Project");
+const WebsiteUrl = require("../models/WebsiteUrl");
 const Report = require("../models/Report");
+const XLSX = require("xlsx");
 
-// @route POST /api/admin/users
-// @desc  Admin creates a User account (credentials handed to user manually)
+// ---------- Users ----------
+
 const createUser = async (req, res) => {
   try {
     const { name, loginId, password } = req.body;
     if (!name || !loginId || !password) {
       return res.status(400).json({ message: "name, loginId, and password are required" });
     }
-
     const exists = await User.findOne({ loginId: loginId.toLowerCase().trim() });
     if (exists) {
       return res.status(409).json({ message: "loginId already in use" });
     }
-
     const user = await User.create({
       name,
       loginId: loginId.toLowerCase().trim(),
@@ -23,14 +23,12 @@ const createUser = async (req, res) => {
       role: "user",
       createdBy: req.user._id,
     });
-
     res.status(201).json({ user });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-// @route GET /api/admin/users
 const getUsers = async (req, res) => {
   try {
     const users = await User.find({ role: "user" }).sort({ createdAt: -1 });
@@ -40,7 +38,6 @@ const getUsers = async (req, res) => {
   }
 };
 
-// @route PATCH /api/admin/users/:id/status
 const setUserStatus = async (req, res) => {
   try {
     const { isActive } = req.body;
@@ -56,18 +53,17 @@ const setUserStatus = async (req, res) => {
   }
 };
 
-// @route POST /api/admin/projects
-// @desc  Admin creates a Project with its fixed keyword.
+// ---------- Projects (name + description only, no keyword) ----------
+
 const createProject = async (req, res) => {
   try {
-    const { name, description, keyword } = req.body;
+    const { name, description } = req.body;
     if (!name) {
       return res.status(400).json({ message: "name is required" });
     }
     const project = await Project.create({
       name,
       description: description || "",
-      keyword: keyword || "",
       createdBy: req.user._id,
     });
     res.status(201).json({ project });
@@ -76,27 +72,6 @@ const createProject = async (req, res) => {
   }
 };
 
-// @route PATCH /api/admin/projects/:id/keyword
-// @desc  Admin updates a Project's fixed keyword.
-const updateProjectKeyword = async (req, res) => {
-  try {
-    const { keyword } = req.body;
-    if (keyword === undefined) {
-      return res.status(400).json({ message: "keyword is required" });
-    }
-    const project = await Project.findByIdAndUpdate(
-      req.params.id,
-      { keyword: keyword.trim() },
-      { new: true }
-    );
-    if (!project) return res.status(404).json({ message: "Project not found" });
-    res.json({ project });
-  } catch (err) {
-    res.status(500).json({ message: "Server error", error: err.message });
-  }
-};
-
-// @route GET /api/admin/projects
 const getProjects = async (req, res) => {
   try {
     const projects = await Project.find().sort({ createdAt: -1 });
@@ -106,15 +81,10 @@ const getProjects = async (req, res) => {
   }
 };
 
-// @route PATCH /api/admin/projects/:id/status
 const setProjectStatus = async (req, res) => {
   try {
     const { isActive } = req.body;
-    const project = await Project.findByIdAndUpdate(
-      req.params.id,
-      { isActive },
-      { new: true }
-    );
+    const project = await Project.findByIdAndUpdate(req.params.id, { isActive }, { new: true });
     if (!project) return res.status(404).json({ message: "Project not found" });
     res.json({ project });
   } catch (err) {
@@ -122,9 +92,84 @@ const setProjectStatus = async (req, res) => {
   }
 };
 
-// @route GET /api/admin/reports
-// @desc  Admin views submitted reports with submitter name + submission time.
-// Supports optional filters: ?project=<id>&user=<id>&from=<date>&to=<date>
+// ---------- Website URLs (belong to a project, carry a keyword list) ----------
+
+// Splits a comma-separated keyword field into clean, deduped values
+const parseKeywords = (raw) =>
+  (raw || "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+
+// @route POST /api/admin/website-urls
+// @desc  Admin adds a Website URL under a project, with its keyword list
+const createWebsiteUrl = async (req, res) => {
+  try {
+    const { project, url, keywords } = req.body;
+    if (!project || !url) {
+      return res.status(400).json({ message: "project and url are required" });
+    }
+    const projectDoc = await Project.findById(project);
+    if (!projectDoc) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    const websiteUrl = await WebsiteUrl.create({
+      project,
+      url: url.trim(),
+      keywords: parseKeywords(keywords),
+      createdBy: req.user._id,
+    });
+    res.status(201).json({ websiteUrl });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route GET /api/admin/website-urls?project=<id>
+const getWebsiteUrls = async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.project) filter.project = req.query.project;
+    const websiteUrls = await WebsiteUrl.find(filter)
+      .populate("project", "name")
+      .sort({ createdAt: -1 });
+    res.json({ websiteUrls });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route PATCH /api/admin/website-urls/:id/keywords
+const updateWebsiteUrlKeywords = async (req, res) => {
+  try {
+    const { keywords } = req.body;
+    const websiteUrl = await WebsiteUrl.findByIdAndUpdate(
+      req.params.id,
+      { keywords: parseKeywords(keywords) },
+      { new: true }
+    );
+    if (!websiteUrl) return res.status(404).json({ message: "Website URL not found" });
+    res.json({ websiteUrl });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route PATCH /api/admin/website-urls/:id/status
+const setWebsiteUrlStatus = async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    const websiteUrl = await WebsiteUrl.findByIdAndUpdate(req.params.id, { isActive }, { new: true });
+    if (!websiteUrl) return res.status(404).json({ message: "Website URL not found" });
+    res.json({ websiteUrl });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// ---------- Reports ----------
+
 const getReports = async (req, res) => {
   try {
     const { project, user, from, to } = req.query;
@@ -136,45 +181,85 @@ const getReports = async (req, res) => {
       if (from) filter.createdAt.$gte = new Date(from);
       if (to) filter.createdAt.$lte = new Date(to);
     }
-
     const reports = await Report.find(filter)
-      .populate("project", "name keyword")
+      .populate("project", "name")
+      .populate("websiteUrl", "url")
       .populate("submittedBy", "name loginId")
       .sort({ createdAt: -1 });
-
     res.json({ reports });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
-
-
-// @route DELETE /api/admin/reports/:id
-// @desc  Admin permanently deletes a submitted report
 const deleteReport = async (req, res) => {
   try {
     const deleted = await Report.findByIdAndDelete(req.params.id);
-    if (!deleted) {
-      return res.status(404).json({ message: "Report not found" });
-    }
+    if (!deleted) return res.status(404).json({ message: "Report not found" });
     res.json({ message: "Report deleted" });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
+const exportReports = async (req, res) => {
+  try {
+    const { user, from, to } = req.query;
+    const filter = {};
+    if (user) filter.submittedBy = user;
+    if (from || to) {
+      filter.createdAt = {};
+      if (from) filter.createdAt.$gte = new Date(from);
+      if (to) {
+        const toDate = new Date(to);
+        toDate.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = toDate;
+      }
+    }
+    const reports = await Report.find(filter)
+      .populate("project", "name")
+      .populate("submittedBy", "name loginId")
+      .sort({ createdAt: -1 });
 
+    const rows = reports.map((r) => {
+      const createdAt = new Date(r.createdAt);
+      return {
+        User: r.submittedBy?.name || r.submittedByName,
+        Project: r.project?.name || "",
+        Keyword: r.keyword,
+        "Website URL": r.workUrl,
+        "Working URL": r.workingUrl,
+        Category: r.category,
+        Date: createdAt.toLocaleDateString(),
+        Time: createdAt.toLocaleTimeString(),
+      };
+    });
 
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Reports");
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="reports-export.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
 
 module.exports = {
   createUser,
   getUsers,
   setUserStatus,
   createProject,
-  updateProjectKeyword,
   getProjects,
   setProjectStatus,
+  createWebsiteUrl,
+  getWebsiteUrls,
+  updateWebsiteUrlKeywords,
+  setWebsiteUrlStatus,
   getReports,
   deleteReport,
+  exportReports,
 };

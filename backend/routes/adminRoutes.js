@@ -6,11 +6,15 @@ const {
   getUsers,
   setUserStatus,
   createProject,
-  updateProjectKeyword,
   getProjects,
   setProjectStatus,
+  createWebsiteUrl,
+  getWebsiteUrls,
+  updateWebsiteUrlKeywords,
+  setWebsiteUrlStatus,
   getReports,
   deleteReport,
+  exportReports,
 } = require("../controllers/adminController");
 
 router.use(protect, authorize("admin"));
@@ -21,9 +25,15 @@ router.patch("/users/:id/status", setUserStatus);
 
 router.post("/projects", createProject);
 router.get("/projects", getProjects);
-router.patch("/projects/:id/keyword", updateProjectKeyword);
 router.patch("/projects/:id/status", setProjectStatus);
 
+router.post("/website-urls", createWebsiteUrl);
+router.get("/website-urls", getWebsiteUrls);
+router.patch("/website-urls/:id/keywords", updateWebsiteUrlKeywords);
+router.patch("/website-urls/:id/status", setWebsiteUrlStatus);
+
+router.get("/reports/export", exportReports);
 router.get("/reports", getReports);
 router.delete("/reports/:id", deleteReport);
+
 module.exports = router;

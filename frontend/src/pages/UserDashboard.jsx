@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import api from "../api/axios";
-import { useAuth } from "../context/AuthContext";
 import { Button, Input, Select, Card, ErrorText } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
 
-const CATEGORY_OPTIONS = ["Blog Submission", "Image Submission", "Social Bookmarking", "PDF Submission", "Business Listing", "Profile Creation"];
+
+
+const CATEGORY_OPTIONS = ["Development", "Design", "Testing", "Research", "Content", "Other"];
 const TABS = [
   { id: "submit", label: "Submit Report" },
   { id: "history", label: "My Reports" },
@@ -16,26 +18,25 @@ export default function UserDashboard() {
   return (
     <div className="min-h-screen bg-surface">
       <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full items-center justify-between px-6 py-4">
+
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-md bg-orange-500 font-display text-xs font-bold text-white">
               U.D
             </div>
             <div>
-              <p className="font-display text-sm font-semibold text-ink">Report Dashboard</p>
-              <p className="text-xs text-ink/40">{user?.name}</p>
+              <p className="font-display text-sm font-semibold text-ink">User Report Dashboard</p>
+              <p className="text-xs text-ink/40">{user?.name} </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-ink/70">{user?.role}</span>
-            <Button variant="ghost" onClick={logout} className="!py-1.5">
-              Log out
-            </Button>
-          </div>
+
+          <Button variant="ghost" onClick={logout} className="!py-1.5">
+            Log out
+          </Button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto w-full px-6 py-8">
         <div className="mb-6 flex gap-1 border-b border-line">
           {TABS.map((t) => (
             <button
@@ -56,9 +57,10 @@ export default function UserDashboard() {
   );
 }
 
-function SubmitReportForm({ onSubmitted }) {
+function SubmitReportForm() {
   const [projects, setProjects] = useState([]);
-  const [form, setForm] = useState({ project: "", workUrl: "", category: "" });
+  const [websiteUrls, setWebsiteUrls] = useState([]);
+  const [form, setForm] = useState({ project: "", websiteUrl: "", keyword: "", category: "", workingUrl: "" });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,21 +69,47 @@ function SubmitReportForm({ onSubmitted }) {
     api.get("/user/projects").then((res) => setProjects(res.data.projects));
   }, []);
 
-  const selectedProject = projects.find((p) => p._id === form.project);
+  // When the project changes, fetch that project's website URLs and reset
+  // the two dependent fields (website URL, keyword) since they no longer apply.
+  useEffect(() => {
+    if (!form.project) {
+      setWebsiteUrls([]);
+      return;
+    }
+    api.get("/user/website-urls", { params: { project: form.project } }).then((res) => {
+      setWebsiteUrls(res.data.websiteUrls);
+    });
+    setForm((f) => ({ ...f, websiteUrl: "", keyword: "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.project]);
+
+  const selectedWebsiteUrl = websiteUrls.find((w) => w._id === form.websiteUrl);
+
+  const handleWebsiteUrlChange = (id) => {
+    setForm({ ...form, websiteUrl: id, keyword: "" });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
-    setBusy(true);
+
+    // Validate URL
+    try {
+      new URL(form.workingUrl.trim());
+    } catch {
+      setError("Please enter a valid Working URL.");
+      return;
+    }
+    setError(""); setSuccess(""); setBusy(true);
     try {
       await api.post("/user/reports", {
         project: form.project,
-        workUrl: form.workUrl,
+        websiteUrl: form.websiteUrl,
+        keyword: form.keyword,
         category: form.category,
+        workingUrl: form.workingUrl,
       });
       setSuccess("Report submitted successfully.");
-      setForm({ project: "", workUrl: "", category: "" });
+      setForm({ project: form.project, websiteUrl: "", keyword: "", category: "", workingUrl: "" });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to submit report");
     } finally {
@@ -99,28 +127,30 @@ function SubmitReportForm({ onSubmitted }) {
           required
         >
           <option value="">Select a project…</option>
-          {projects.map((p) => (
-            <option key={p._id} value={p._id}>{p.name}</option>
-          ))}
+          {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
         </Select>
 
-        <Input
-          label="Keyword (fixed — set by admin)"
-          value={selectedProject?.keyword || ""}
-          readOnly
-          disabled
-          className="cursor-not-allowed bg-line/30 font-mono"
-          placeholder="Auto-filled after you select a project"
-        />
-
-        <Input
-          label="Work URL"
-          type="url"
-          placeholder="https://…"
-          value={form.workUrl}
-          onChange={(e) => setForm({ ...form, workUrl: e.target.value })}
+        <Select
+          label="Website URL"
+          value={form.websiteUrl}
+          onChange={(e) => handleWebsiteUrlChange(e.target.value)}
           required
-        />
+          disabled={!form.project}
+        >
+          <option value="">{form.project ? "Select a website URL…" : "Select a project first"}</option>
+          {websiteUrls.map((w) => <option key={w._id} value={w._id}>{w.url}</option>)}
+        </Select>
+
+        <Select
+          label="Keyword"
+          value={form.keyword}
+          onChange={(e) => setForm({ ...form, keyword: e.target.value })}
+          required
+          disabled={!form.websiteUrl}
+        >
+          <option value="">{form.websiteUrl ? "Select a keyword…" : "Select a website URL first"}</option>
+          {(selectedWebsiteUrl?.keywords || []).map((k) => <option key={k} value={k}>{k}</option>)}
+        </Select>
 
         <Select
           label="Category"
@@ -129,19 +159,34 @@ function SubmitReportForm({ onSubmitted }) {
           required
         >
           <option value="">Select a category…</option>
-          {CATEGORY_OPTIONS.map((c) => (
-            <option key={c} value={c}>{c}</option>
-          ))}
+          {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
         </Select>
 
-        <p className="text-xs text-ink/50">
+        <div>
+          <label className="mb-2 block text-sm font-medium text-ink">
+            Working URL
+          </label>
+
+          <textarea
+            placeholder="https://... (the link to your completed work)"
+            value={form.workingUrl}
+            onChange={(e) =>
+              setForm({ ...form, workingUrl: e.target.value })
+            }
+            rows={5}
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            required
+          />
+        </div>
+
+        <p className="text-xs text-ink/40">
           Date and time of submission are recorded automatically. Once submitted, a report cannot be edited or deleted.
         </p>
 
         <ErrorText>{error}</ErrorText>
         {success && <p className="rounded-md bg-good/10 px-3 py-2 text-sm text-good">{success}</p>}
 
-        <Button type="submit" variant="orange" className="w-full" disabled={busy}>
+        <Button type="submit" variant="accent" className="w-full bg-orange-500 text-white hover:bg-orange-600" disabled={busy}>
           {busy ? "Submitting…" : "Submit report"}
         </Button>
       </form>
@@ -173,14 +218,15 @@ function MyReportsList() {
   return (
     <Card className="!p-0 overflow-hidden">
       <div className="border-b border-line px-4 py-3">
-        <p className="text-xs text-ink/60">Read-only — submitted reports cannot be edited or deleted.</p>
+        <p className="text-xs text-ink/40">Read-only — submitted reports cannot be edited or deleted.</p>
       </div>
       <table className="w-full text-left text-sm">
         <thead className="border-b border-line bg-surface/60 text-xs uppercase tracking-wide text-ink/50">
           <tr>
             <th className="px-4 py-3 font-medium">Project</th>
+            <th className="px-4 py-3 font-medium">Website URL</th>
+            <th className="px-4 py-3 font-medium">Working URL</th>
             <th className="px-4 py-3 font-medium">Keyword</th>
-            <th className="px-4 py-3 font-medium">Work URL</th>
             <th className="px-4 py-3 font-medium">Category</th>
             <th className="px-4 py-3 font-medium">Date</th>
             <th className="px-4 py-3 font-medium">Time</th>
@@ -188,22 +234,19 @@ function MyReportsList() {
         </thead>
         <tbody className="divide-y divide-line">
           {reports.length === 0 && (
-            <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-ink/40">
-                You haven't submitted any reports yet.
-              </td>
-            </tr>
+            <tr><td colSpan={7} className="px-4 py-8 text-center text-ink/40">You haven't submitted any reports yet.</td></tr>
           )}
           {reports.map((r) => {
             const { date, time } = formatDate(r.createdAt);
             return (
               <tr key={r._id}>
                 <td className="px-4 py-3 text-ink/70">{r.project?.name || "—"}</td>
+                <td className="px-4 py-3">
+                  <a href={r.workUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">{r.workUrl}</a>
+                </td>
                 <td className="px-4 py-3 font-mono text-xs text-accent">{r.keyword || "—"}</td>
                 <td className="px-4 py-3">
-                  <a href={r.workUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                    {r.workUrl}
-                  </a>
+                  <a href={r.workingUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">{r.workingUrl}</a>
                 </td>
                 <td className="px-4 py-3 text-ink/70">{r.category}</td>
                 <td className="px-4 py-3 font-mono text-xs text-ink/60">{date}</td>

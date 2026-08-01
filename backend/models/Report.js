@@ -7,14 +7,27 @@ const reportSchema = new mongoose.Schema(
       ref: "Project",
       required: true,
     },
-    // Snapshot of the project's keyword at submission time, so historical
-    // reports stay accurate even if the keyword is changed later.
+    websiteUrl: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "WebsiteUrl",
+      required: true,
+    },
+    // Snapshot of the URL string at submission time, so historical reports
+    // stay accurate even if the WebsiteUrl entry is edited/disabled later.
+    workUrl: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    // The single keyword the user picked from that URL's keyword list
     keyword: {
       type: String,
+      required: true,
       trim: true,
-      default: "",
     },
-    workUrl: {
+    // The actual URL of completed work the user pastes in when submitting.
+    // Checked for duplicates within the same project.
+    workingUrl: {
       type: String,
       required: true,
       trim: true,
@@ -29,13 +42,12 @@ const reportSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    // Denormalized so admin's report table doesn't need extra lookups
     submittedByName: {
       type: String,
       required: true,
     },
   },
-  { timestamps: true } // createdAt = date & time of submission
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Report", reportSchema);
