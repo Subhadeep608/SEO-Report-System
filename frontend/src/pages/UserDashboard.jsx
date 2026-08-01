@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 
 
 
-const CATEGORY_OPTIONS = ["Development", "Design", "Testing", "Research", "Content", "Other"];
+const CATEGORY_OPTIONS = ["Blog Submission", "Image Submission", "Social Bookmarking", "PDF Submission", "Business Listing", "Profile Creation"];
 const TABS = [
   { id: "submit", label: "Submit Report" },
   { id: "history", label: "My Reports" },
@@ -225,8 +225,8 @@ function MyReportsList() {
           <tr>
             <th className="px-4 py-3 font-medium">Project</th>
             <th className="px-4 py-3 font-medium">Website URL</th>
-            <th className="px-4 py-3 font-medium">Working URL</th>
             <th className="px-4 py-3 font-medium">Keyword</th>
+            <th className="px-4 py-3 font-medium">Working URL</th>
             <th className="px-4 py-3 font-medium">Category</th>
             <th className="px-4 py-3 font-medium">Date</th>
             <th className="px-4 py-3 font-medium">Time</th>
