@@ -216,20 +216,20 @@ function MyReportsList() {
   if (loading) return <Card><p className="text-sm text-ink/40">Loading…</p></Card>;
 
   return (
-    <Card className="!p-0 overflow-hidden">
+    <Card className="!p-0 overflow-x-auto">
       <div className="border-b border-line px-4 py-3">
         <p className="text-xs text-ink/40">Read-only — submitted reports cannot be edited or deleted.</p>
       </div>
-      <table className="w-full text-left text-sm">
+      <table className="min-w-[1200px] w-full table-fixed text-left text-sm">
         <thead className="border-b border-line bg-surface/60 text-xs uppercase tracking-wide text-ink/50">
           <tr>
-            <th className="px-4 py-3 font-medium">Project</th>
-            <th className="px-4 py-3 font-medium">Website URL</th>
-            <th className="px-4 py-3 font-medium">Keyword</th>
-            <th className="px-4 py-3 font-medium">Working URL</th>
-            <th className="px-4 py-3 font-medium">Category</th>
-            <th className="px-4 py-3 font-medium">Date</th>
-            <th className="px-4 py-3 font-medium">Time</th>
+            <th className="w-[180px] px-4 py-3 font-medium">Project</th>
+            <th className="w-[300px] px-4 py-3 font-medium">Website URL</th>
+            <th className="w-[180px] px-4 py-3 font-medium">Keyword</th>
+            <th className="w-[300px] px-4 py-3 font-medium">Working URL</th>
+            <th className="w-[180px] px-4 py-3 font-medium">Category</th>
+            <th className="w-[180px] px-4 py-3 font-medium">Date</th>
+            <th className="w-[180px] px-4 py-3 font-medium">Time</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line">
@@ -242,11 +242,26 @@ function MyReportsList() {
               <tr key={r._id}>
                 <td className="px-4 py-3 text-ink/70">{r.project?.name || "—"}</td>
                 <td className="px-4 py-3">
-                  <a href={r.workUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">{r.workUrl}</a>
+                  <a href={r.workUrl} target="_blank" rel="noreferrer" className="block max-w-[300px]  text-accent hover:underline break-all whitespace-normal">
+                    {r.workUrl}
+                  </a>
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-accent">{r.keyword || "—"}</td>
                 <td className="px-4 py-3">
-                  <a href={r.workingUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">{r.workingUrl}</a>
+                  {r.workingUrl
+                    ?.split(/\r?\n|,/)
+                    .filter((url) => url.trim())
+                    .map((url, index) => (
+                      <a
+                        key={index}
+                        href={url.trim()}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block max-w-[300px] break-all whitespace-normal text-accent hover:underline mb-1"
+                      >
+                        {url.trim()}
+                      </a>
+                    ))}
                 </td>
                 <td className="px-4 py-3 text-ink/70">{r.category}</td>
                 <td className="px-4 py-3 font-mono text-xs text-ink/60">{date}</td>

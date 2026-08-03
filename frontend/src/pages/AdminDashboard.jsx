@@ -3,6 +3,8 @@ import api from "../api/axios";
 import { Button, Input, Select, Card, Badge, ErrorText } from "../components/ui";
 import DashboardLayout from "../components/DashboardLayout";
 
+const CATEGORY_OPTIONS = ["Blog Submission", "Image Submission", "Social Bookmarking", "PDF Submission", "Business Listing", "Profile Creation"];
+
 const TABS = [
   { id: "reports", label: "Reports" },
   { id: "users", label: "Users" },
@@ -20,9 +22,8 @@ export default function AdminDashboard() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition ${
-              tab === t.id ? "border-accent text-accent" : "border-transparent text-ink/50 hover:text-ink"
-            }`}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-medium transition ${tab === t.id ? "border-accent text-accent" : "border-transparent text-ink/50 hover:text-ink"
+              }`}
           >
             {t.label}
           </button>
@@ -42,12 +43,15 @@ function ReportsPanel() {
   const [reports, setReports] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
-  const [filters, setFilters] = useState({ project: "", user: "" });
+  const [filters, setFilters] = useState({ project: "", user: "", category: "", from: "", to: "" });
 
   const load = async () => {
     const params = {};
     if (filters.project) params.project = filters.project;
     if (filters.user) params.user = filters.user;
+    if (filters.category) params.category = filters.category;
+    if (filters.from) params.from = filters.from;
+    if (filters.to) params.to = filters.to;
     const [reportsRes, projectsRes, usersRes] = await Promise.all([
       api.get("/admin/reports", { params }),
       api.get("/admin/projects"),
@@ -96,7 +100,20 @@ function ReportsPanel() {
               {users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}
             </Select>
           </div>
-          <Button variant="ghost" onClick={() => setFilters({ project: "", user: "" })}>Clear filters</Button>
+          <div className="w-44">
+            <Select label="Filter by category" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>
+              <option value="">All categories</option>
+              {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+          <div className="w-40">
+            <Input label="From date" type="date" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
+          </div>
+          <div className="w-40">
+            <Input label="To date" type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+          </div>
+          <Button variant="ghost" onClick={() => setFilters({ project: "", user: "", category: "", from: "", to: "" })}>Clear filters</Button>
+
           <div className="ml-auto flex items-center gap-2">
             <span className="flex items-center gap-1.5 text-xs text-ink/40">
               <span className="h-1.5 w-1.5 rounded-full bg-good animate-pulse" />
@@ -106,19 +123,19 @@ function ReportsPanel() {
         </div>
       </Card>
 
-      <Card className="!p-0 overflow-hidden">
-        <table className="w-full text-left text-sm">
+      <Card className="!p-0 overflow-x-auto">
+        <table className="min-w-[1200px] w-full table-fixed text-left text-sm">
           <thead className="border-b border-line bg-surface/60 text-xs uppercase tracking-wide text-ink/50">
             <tr>
-              <th className="px-4 py-3 font-medium">User</th>
-              <th className="px-4 py-3 font-medium">Project</th>
-              <th className="px-4 py-3 font-medium">Keyword</th>
-              <th className="px-4 py-3 font-medium">Website URL</th>
-              <th className="px-4 py-3 font-medium">Working URL</th>
-              <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Time</th>
-              <th className="w-10 px-2 py-3"></th>
+              <th className="w-[180px] px-4 py-3 font-medium">User</th>
+              <th className="w-[180px] px-4 py-3 font-medium">Project</th>
+              <th className="w-[180px] px-4 py-3 font-medium">Keyword</th>
+              <th className="w-[300px] px-4 py-3 font-medium">Website URL</th>
+              <th className="w-[300px] px-4 py-3 font-medium">Working URL</th>
+              <th className="w-[150px] px-4 py-3 font-medium">Category</th>
+              <th className="w-[120px] px-4 py-3 font-medium">Date</th>
+              <th className="w-[120px] px-4 py-3 font-medium">Time</th>
+              <th className="w-[60px] w-10 px-2 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -133,10 +150,25 @@ function ReportsPanel() {
                   <td className="px-4 py-3 text-ink/70">{r.project?.name || "—"}</td>
                   <td className="px-4 py-3"><Badge tone="accent">{r.keyword || "—"}</Badge></td>
                   <td className="px-4 py-3">
-                    <a href={r.workUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">{r.workUrl}</a>
+                    <a href={r.workUrl} target="_blank" rel="noreferrer" className="block max-w-[230px]  text-accent hover:underline break-all whitespace-normal">
+                      {r.workUrl}
+                    </a>
                   </td>
                   <td className="px-4 py-3">
-                    <a href={r.workingUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">{r.workingUrl}</a>
+                    {r.workingUrl
+                      ?.split(/\r?\n|,/)
+                      .filter((url) => url.trim())
+                      .map((url, index) => (
+                        <a
+                          key={index}
+                          href={url.trim()}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block max-w-[300px] break-all whitespace-normal text-accent hover:underline mb-1"
+                        >
+                          {url.trim()}
+                        </a>
+                      ))}
                   </td>
                   <td className="px-4 py-3 text-ink/70">{r.category}</td>
                   <td className="px-4 py-3 font-mono text-xs text-ink/60">{date}</td>

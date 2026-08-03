@@ -172,10 +172,11 @@ const setWebsiteUrlStatus = async (req, res) => {
 
 const getReports = async (req, res) => {
   try {
-    const { project, user, from, to } = req.query;
+    const { project, user,category, from, to } = req.query;
     const filter = {};
     if (project) filter.project = project;
     if (user) filter.submittedBy = user;
+    if (category) filter.category = category;
     if (from || to) {
       filter.createdAt = {};
       if (from) filter.createdAt.$gte = new Date(from);
