@@ -34,7 +34,6 @@ export default function AdminDashboard() {
       {tab === "users" && <UsersPanel />}
       {tab === "projects" && <ProjectsPanel />}
       {tab === "websiteUrls" && <WebsiteUrlsPanel />}
-      {tab === "websiteUrls" && <WebsiteUrlsPanel />}
     </DashboardLayout>
   );
 }
@@ -127,6 +126,7 @@ function ReportsPanel() {
         <table className="min-w-[1200px] w-full table-fixed text-left text-sm">
           <thead className="border-b border-line bg-surface/60 text-xs uppercase tracking-wide text-ink/50">
             <tr>
+              <th className="w-[60px] px-4 py-3 font-medium">Sr.No</th>
               <th className="w-[180px] px-4 py-3 font-medium">User</th>
               <th className="w-[180px] px-4 py-3 font-medium">Project</th>
               <th className="w-[180px] px-4 py-3 font-medium">Keyword</th>
@@ -146,6 +146,7 @@ function ReportsPanel() {
               const { date, time } = formatDate(r.createdAt);
               return (
                 <tr key={r._id} className="group hover:bg-surface/50">
+                  <td className="px-4 py-3 font-mono text-xs text-ink/60">{reports.indexOf(r) + 1}</td>
                   <td className="px-4 py-3 font-medium text-ink">{r.submittedByName}</td>
                   <td className="px-4 py-3 text-ink/70">{r.project?.name || "—"}</td>
                   <td className="px-4 py-3"><Badge tone="accent">{r.keyword || "—"}</Badge></td>
@@ -231,6 +232,14 @@ function UsersPanel() {
     load();
   };
 
+  const handleDelete = async (u) => {
+    const confirmed = window.confirm(`Delete user "${u.name}"? This cannot be undone.`);
+    if (!confirmed) return;
+    await api.delete(`/admin/users/${u._id}`);
+    load();
+  };
+
+
   return (
     <div className="grid gap-8 lg:grid-cols-5">
       <Card className="lg:col-span-2 h-fit">
@@ -258,6 +267,7 @@ function UsersPanel() {
               <div className="flex items-center gap-3">
                 <Badge tone={u.isActive ? "good" : "warn"}>{u.isActive ? "active" : "disabled"}</Badge>
                 <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => toggleStatus(u)}>{u.isActive ? "Disable" : "Enable"}</Button>
+                <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => handleDelete(u)}>Delete</Button>
               </div>
             </div>
           ))}
@@ -299,6 +309,16 @@ function ProjectsPanel() {
     load();
   };
 
+  const handleDelete = async (p) => {
+    const confirmed = window.confirm(
+      `Delete project "${p.name}"? This also deletes all of its Website URLs. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    await api.delete(`/admin/projects/${p._id}`);
+    load();
+  };
+
+
   return (
     <div className="grid gap-8 lg:grid-cols-5">
       <Card className="lg:col-span-2 h-fit">
@@ -327,6 +347,7 @@ function ProjectsPanel() {
               <div className="flex items-center gap-3">
                 <Badge tone={p.isActive ? "good" : "warn"}>{p.isActive ? "active" : "disabled"}</Badge>
                 <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => toggleStatus(p)}>{p.isActive ? "Disable" : "Enable"}</Button>
+                <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => handleDelete(p)}>Delete</Button>
               </div>
             </div>
           ))}
@@ -339,21 +360,29 @@ function ProjectsPanel() {
 function WebsiteUrlsPanel() {
   const [projects, setProjects] = useState([]);
   const [websiteUrls, setWebsiteUrls] = useState([]);
+  const [filterProject, setFilterProject] = useState("");
   const [form, setForm] = useState({ project: "", url: "", keywords: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [keywordDrafts, setKeywordDrafts] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ url: "", keywords: "" });
 
-  const load = async () => {
-    const [projectsRes, urlsRes] = await Promise.all([
-      api.get("/admin/projects"),
-      api.get("/admin/website-urls"),
-    ]);
-    setProjects(projectsRes.data.projects);
-    setWebsiteUrls(urlsRes.data.websiteUrls);
+  const loadProjects = async () => {
+    const res = await api.get("/admin/projects");
+    setProjects(res.data.projects);
   };
 
-  useEffect(() => { load(); }, []);
+  const loadWebsiteUrls = async (projectId) => {
+    if (!projectId) {
+      setWebsiteUrls([]);
+      return;
+    }
+    const res = await api.get("/admin/website-urls", { params: { project: projectId } });
+    setWebsiteUrls(res.data.websiteUrls);
+  };
+
+  useEffect(() => { loadProjects(); }, []);
+  useEffect(() => { loadWebsiteUrls(filterProject); }, [filterProject]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -361,7 +390,8 @@ function WebsiteUrlsPanel() {
     try {
       await api.post("/admin/website-urls", form);
       setForm({ project: form.project, url: "", keywords: "" });
-      load();
+      // If we're currently viewing the same project this URL belongs to, refresh the list
+      if (filterProject === form.project) loadWebsiteUrls(filterProject);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to add website URL");
     } finally {
@@ -371,14 +401,33 @@ function WebsiteUrlsPanel() {
 
   const toggleStatus = async (w) => {
     await api.patch(`/admin/website-urls/${w._id}/status`, { isActive: !w.isActive });
-    load();
+    loadWebsiteUrls(filterProject);
   };
 
-  const saveKeywords = async (id) => {
-    const keywords = keywordDrafts[id];
-    if (keywords === undefined) return;
-    await api.patch(`/admin/website-urls/${id}/keywords`, { keywords });
-    load();
+  const handleDelete = async (w) => {
+    const confirmed = window.confirm(`Delete this website URL? This cannot be undone.`);
+    if (!confirmed) return;
+    await api.delete(`/admin/website-urls/${w._id}`);
+    loadWebsiteUrls(filterProject);
+  };
+
+  const startEdit = (w) => {
+    setEditingId(w._id);
+    setEditDraft({ url: w.url, keywords: w.keywords.join(", ") });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft({ url: "", keywords: "" });
+  };
+
+  const saveEdit = async (id) => {
+    await api.patch(`/admin/website-urls/${id}`, {
+      url: editDraft.url,
+      keywords: editDraft.keywords,
+    });
+    setEditingId(null);
+    loadWebsiteUrls(filterProject);
   };
 
   return (
@@ -408,30 +457,57 @@ function WebsiteUrlsPanel() {
       <Card className="lg:col-span-3 !p-0 overflow-hidden">
         <div className="border-b border-line px-6 py-4">
           <h2 className="font-display text-base font-semibold text-ink">Website URLs</h2>
+          <div className="mt-3">
+            <Select label="Filter by project" value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
+              <option value="">Select a project…</option>
+              {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+            </Select>
+          </div>
         </div>
         <div className="divide-y divide-line">
-          {websiteUrls.length === 0 && <p className="px-6 py-6 text-sm text-ink/40">No website URLs added yet.</p>}
+          {!filterProject && (
+            <p className="px-6 py-6 text-sm text-ink/40">Select a project above to view its website URLs.</p>
+          )}
+          {filterProject && websiteUrls.length === 0 && (
+            <p className="px-6 py-6 text-sm text-ink/40">No website URLs added for this project yet.</p>
+          )}
           {websiteUrls.map((w) => (
             <div key={w._id} className="px-6 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-ink/40">{w.project?.name || "—"}</p>
-                  <a href={w.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-accent hover:underline break-all">{w.url}</a>
+              {editingId === w._id ? (
+                <div className="space-y-3">
+                  <Input
+                    label="Website URL"
+                    type="url"
+                    value={editDraft.url}
+                    onChange={(e) => setEditDraft({ ...editDraft, url: e.target.value })}
+                  />
+                  <Input
+                    label="Keywords (comma separated)"
+                    value={editDraft.keywords}
+                    onChange={(e) => setEditDraft({ ...editDraft, keywords: e.target.value })}
+                    className="font-mono"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="accent" className="!py-1.5 !px-3 text-xs" onClick={() => saveEdit(w._id)}>Save</Button>
+                    <Button variant="ghost" className="!py-1.5 !px-3 text-xs" onClick={cancelEdit}>Cancel</Button>
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge tone={w.isActive ? "good" : "warn"}>{w.isActive ? "active" : "disabled"}</Badge>
-                  <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => toggleStatus(w)}>{w.isActive ? "Disable" : "Enable"}</Button>
+              ) : (
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <a href={w.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-accent hover:underline break-all">{w.url}</a>
+                    <p className="mt-1 text-xs text-ink/50 break-words">
+                      {w.keywords.length > 0 ? w.keywords.join(", ") : "No keywords set"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Badge tone={w.isActive ? "good" : "warn"}>{w.isActive ? "active" : "disabled"}</Badge>
+                    <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => startEdit(w)}>Edit</Button>
+                    <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => toggleStatus(w)}>{w.isActive ? "Disable" : "Enable"}</Button>
+                    <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => handleDelete(w)}>Delete</Button>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  className="focus-ring flex-1 rounded-md border border-line bg-white px-2 py-1.5 font-mono text-xs"
-                  placeholder="keyword1, keyword2, …"
-                  defaultValue={w.keywords.join(", ")}
-                  onChange={(e) => setKeywordDrafts({ ...keywordDrafts, [w._id]: e.target.value })}
-                />
-                <Button variant="ghost" className="!py-1.5 !px-3 text-xs" onClick={() => saveKeywords(w._id)}>Save</Button>
-              </div>
+              )}
             </div>
           ))}
         </div>

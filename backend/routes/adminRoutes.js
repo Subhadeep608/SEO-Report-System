@@ -5,13 +5,16 @@ const {
   createUser,
   getUsers,
   setUserStatus,
+  deleteUser,
   createProject,
   getProjects,
   setProjectStatus,
+  deleteProject,
   createWebsiteUrl,
   getWebsiteUrls,
-  updateWebsiteUrlKeywords,
+  updateWebsiteUrl,
   setWebsiteUrlStatus,
+  deleteWebsiteUrl,
   getReports,
   deleteReport,
   exportReports,
@@ -22,15 +25,18 @@ router.use(protect, authorize("admin"));
 router.post("/users", createUser);
 router.get("/users", getUsers);
 router.patch("/users/:id/status", setUserStatus);
+router.delete("/users/:id", deleteUser);
 
 router.post("/projects", createProject);
 router.get("/projects", getProjects);
 router.patch("/projects/:id/status", setProjectStatus);
+router.delete("/projects/:id", deleteProject);
 
 router.post("/website-urls", createWebsiteUrl);
 router.get("/website-urls", getWebsiteUrls);
-router.patch("/website-urls/:id/keywords", updateWebsiteUrlKeywords);
+router.patch("/website-urls/:id", updateWebsiteUrl);
 router.patch("/website-urls/:id/status", setWebsiteUrlStatus);
+router.delete("/website-urls/:id", deleteWebsiteUrl);
 
 router.get("/reports/export", exportReports);
 router.get("/reports", getReports);

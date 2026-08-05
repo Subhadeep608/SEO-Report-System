@@ -53,6 +53,17 @@ const setUserStatus = async (req, res) => {
   }
 };
 
+// @route DELETE /api/admin/users/:id
+const deleteUser = async (req, res) => {
+  try {
+    const deleted = await User.findOneAndDelete({ _id: req.params.id, role: "user" });
+    if (!deleted) return res.status(404).json({ message: "User not found" });
+    res.json({ message: "User deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 // ---------- Projects (name + description only, no keyword) ----------
 
 const createProject = async (req, res) => {
@@ -92,6 +103,20 @@ const setProjectStatus = async (req, res) => {
   }
 };
 
+
+// @route DELETE /api/admin/projects/:id
+// @desc  Deletes the project and its Website URL entries. Historical reports
+// are kept as-is (they already store their own snapshot of the data).
+const deleteProject = async (req, res) => {
+  try {
+    const deleted = await Project.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Project not found" });
+    await WebsiteUrl.deleteMany({ project: req.params.id });
+    res.json({ message: "Project deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
 // ---------- Website URLs (belong to a project, carry a keyword list) ----------
 
 // Splits a comma-separated keyword field into clean, deduped values
@@ -140,17 +165,29 @@ const getWebsiteUrls = async (req, res) => {
   }
 };
 
-// @route PATCH /api/admin/website-urls/:id/keywords
-const updateWebsiteUrlKeywords = async (req, res) => {
+// @route PATCH /api/admin/website-urls/:id
+// @desc  Admin edits both the URL and keyword list of a Website URL entry
+const updateWebsiteUrl = async (req, res) => {
   try {
-    const { keywords } = req.body;
-    const websiteUrl = await WebsiteUrl.findByIdAndUpdate(
-      req.params.id,
-      { keywords: parseKeywords(keywords) },
-      { new: true }
-    );
+    const { url, keywords } = req.body;
+    const update = {};
+    if (url !== undefined) update.url = url.trim();
+    if (keywords !== undefined) update.keywords = parseKeywords(keywords);
+
+    const websiteUrl = await WebsiteUrl.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!websiteUrl) return res.status(404).json({ message: "Website URL not found" });
     res.json({ websiteUrl });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route DELETE /api/admin/website-urls/:id
+const deleteWebsiteUrl = async (req, res) => {
+  try {
+    const deleted = await WebsiteUrl.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Website URL not found" });
+    res.json({ message: "Website URL deleted" });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -172,7 +209,7 @@ const setWebsiteUrlStatus = async (req, res) => {
 
 const getReports = async (req, res) => {
   try {
-    const { project, user,category, from, to } = req.query;
+    const { project, user, category, from, to } = req.query;
     const filter = {};
     if (project) filter.project = project;
     if (user) filter.submittedBy = user;
@@ -253,13 +290,16 @@ module.exports = {
   createUser,
   getUsers,
   setUserStatus,
+  deleteUser,
   createProject,
   getProjects,
   setProjectStatus,
+  deleteProject,
   createWebsiteUrl,
   getWebsiteUrls,
-  updateWebsiteUrlKeywords,
+  updateWebsiteUrl,
   setWebsiteUrlStatus,
+  deleteWebsiteUrl,
   getReports,
   deleteReport,
   exportReports,
