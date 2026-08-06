@@ -18,6 +18,8 @@ const {
   getReports,
   deleteReport,
   exportReports,
+  getRankingReports,
+  deleteRankingReport,
 } = require("../controllers/adminController");
 
 router.use(protect, authorize("admin"));
@@ -41,5 +43,9 @@ router.delete("/website-urls/:id", deleteWebsiteUrl);
 router.get("/reports/export", exportReports);
 router.get("/reports", getReports);
 router.delete("/reports/:id", deleteReport);
+
+router.get("/ranking-reports", getRankingReports);
+router.delete("/ranking-reports/:id", deleteRankingReport);
+
 
 module.exports = router;

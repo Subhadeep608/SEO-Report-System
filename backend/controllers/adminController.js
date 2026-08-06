@@ -2,6 +2,7 @@ const User = require("../models/User");
 const Project = require("../models/Project");
 const WebsiteUrl = require("../models/WebsiteUrl");
 const Report = require("../models/Report");
+const RankingReport = require("../models/RankingReport");
 const XLSX = require("xlsx");
 
 // ---------- Users ----------
@@ -209,10 +210,11 @@ const setWebsiteUrlStatus = async (req, res) => {
 
 const getReports = async (req, res) => {
   try {
-    const { project, user, category, from, to } = req.query;
+    const { project, user,websiteUrl, category, from, to } = req.query;
     const filter = {};
     if (project) filter.project = project;
     if (user) filter.submittedBy = user;
+    if (websiteUrl) filter.websiteUrl = websiteUrl;
     if (category) filter.category = category;
     if (from || to) {
       filter.createdAt = {};
@@ -286,6 +288,49 @@ const exportReports = async (req, res) => {
   }
 };
 
+
+// @route GET /api/admin/ranking-reports?project=<id>
+// @desc  All ranking reports submitted for a project, newest first
+const getRankingReports = async (req, res) => {
+  try {
+    const { project, page = 1, limit = 2 } = req.query;
+    if (!project) {
+      return res.status(400).json({ message: "project query param is required" });
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(limit, 10) || 2);
+
+    const total = await RankingReport.countDocuments({ project });
+    const rankingReports = await RankingReport.find({ project })
+      .populate("project", "name")
+      .populate("submittedBy", "name loginId")
+      .sort({ date: -1, createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    res.json({
+      rankingReports,
+      total,
+      page: pageNum,
+      totalPages: Math.max(1, Math.ceil(total / limitNum)),
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route DELETE /api/admin/ranking-reports/:id
+const deleteRankingReport = async (req, res) => {
+  try {
+    const deleted = await RankingReport.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Ranking report not found" });
+    res.json({ message: "Ranking report deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 module.exports = {
   createUser,
   getUsers,
@@ -303,4 +348,6 @@ module.exports = {
   getReports,
   deleteReport,
   exportReports,
+  getRankingReports,
+  deleteRankingReport,
 };

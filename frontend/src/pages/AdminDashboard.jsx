@@ -10,6 +10,7 @@ const TABS = [
   { id: "users", label: "Users" },
   { id: "projects", label: "Projects" },
   { id: "websiteUrls", label: "Website URLs" },
+  { id: "rankingReports", label: "Ranking Reports" },
 ];
 
 export default function AdminDashboard() {
@@ -34,6 +35,7 @@ export default function AdminDashboard() {
       {tab === "users" && <UsersPanel />}
       {tab === "projects" && <ProjectsPanel />}
       {tab === "websiteUrls" && <WebsiteUrlsPanel />}
+      {tab === "rankingReports" && <RankingReportsPanel />}
     </DashboardLayout>
   );
 }
@@ -41,24 +43,22 @@ export default function AdminDashboard() {
 function ReportsPanel() {
   const [reports, setReports] = useState([]);
   const [projects, setProjects] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [filters, setFilters] = useState({ project: "", user: "", category: "", from: "", to: "" });
+  const [websiteUrls, setWebsiteUrls] = useState([]);
+  const [filters, setFilters] = useState({ project: "", websiteUrl: "", category: "", from: "", to: "" });
 
   const load = async () => {
     const params = {};
     if (filters.project) params.project = filters.project;
-    if (filters.user) params.user = filters.user;
+    if (filters.websiteUrl) params.websiteUrl = filters.websiteUrl;
     if (filters.category) params.category = filters.category;
     if (filters.from) params.from = filters.from;
     if (filters.to) params.to = filters.to;
-    const [reportsRes, projectsRes, usersRes] = await Promise.all([
+    const [reportsRes, projectsRes] = await Promise.all([
       api.get("/admin/reports", { params }),
       api.get("/admin/projects"),
-      api.get("/admin/users"),
     ]);
     setReports(reportsRes.data.reports);
     setProjects(projectsRes.data.projects);
-    setUsers(usersRes.data.users);
   };
 
   useEffect(() => {
@@ -67,6 +67,21 @@ function ReportsPanel() {
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  // When the project filter changes, load that project's Website URLs and
+  // reset the Website URL filter since it no longer applies.
+  useEffect(() => {
+    if (!filters.project) {
+      setWebsiteUrls([]);
+      return;
+    }
+    api.get("/admin/website-urls", { params: { project: filters.project } }).then((res) => {
+      setWebsiteUrls(res.data.websiteUrls);
+    });
+    setFilters((f) => ({ ...f, websiteUrl: "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.project]);
+
 
   const formatDate = (iso) => {
     const d = new Date(iso);
@@ -86,6 +101,17 @@ function ReportsPanel() {
   return (
     <div className="space-y-4">
       <Card>
+        <div className="mb-3 flex items-center gap-2 text-sm text-ink/50">
+          <div className=" flex items-center gap-2 ">
+            <span className="flex items-center gap-1.5 text-xs text-ink/80 bg-[#f7f8fa] py-2 px-4 rounded">
+              <span className="h-1.5 w-1.5 rounded-full bg-good animate-pulse" />
+              Live
+            </span>
+          </div>
+
+          <Button variant="orange" onClick={() => setFilters({ project: "", user: "", category: "", from: "", to: "" })}>Clear filters</Button>
+        </div>
+
         <div className="flex flex-wrap items-end gap-4">
           <div className="w-56">
             <Select label="Filter by project" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}>
@@ -94,9 +120,14 @@ function ReportsPanel() {
             </Select>
           </div>
           <div className="w-56">
-            <Select label="Filter by user" value={filters.user} onChange={(e) => setFilters({ ...filters, user: e.target.value })}>
-              <option value="">All users</option>
-              {users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}
+            <Select
+              label="Filter by website URL"
+              value={filters.websiteUrl}
+              onChange={(e) => setFilters({ ...filters, websiteUrl: e.target.value })}
+              disabled={!filters.project}
+            >
+              <option value="">{filters.project ? "All website URLs" : "Select a project first"}</option>
+              {websiteUrls.map((w) => <option key={w._id} value={w._id}>{w.url}</option>)}
             </Select>
           </div>
           <div className="w-44">
@@ -111,14 +142,7 @@ function ReportsPanel() {
           <div className="w-40">
             <Input label="To date" type="date" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
           </div>
-          <Button variant="ghost" onClick={() => setFilters({ project: "", user: "", category: "", from: "", to: "" })}>Clear filters</Button>
 
-          <div className="ml-auto flex items-center gap-2">
-            <span className="flex items-center gap-1.5 text-xs text-ink/40">
-              <span className="h-1.5 w-1.5 rounded-full bg-good animate-pulse" />
-              live
-            </span>
-          </div>
         </div>
       </Card>
 
@@ -131,7 +155,7 @@ function ReportsPanel() {
               <th className="w-[180px] px-4 py-3 font-medium">Project</th>
               <th className="w-[180px] px-4 py-3 font-medium">Keyword</th>
               <th className="w-[300px] px-4 py-3 font-medium">Website URL</th>
-              <th className="w-[300px] px-4 py-3 font-medium">Working URL</th>
+              <th className="w-[300px] px-4 py-3 font-medium">Submitted URL</th>
               <th className="w-[150px] px-4 py-3 font-medium">Category</th>
               <th className="w-[120px] px-4 py-3 font-medium">Date</th>
               <th className="w-[120px] px-4 py-3 font-medium">Time</th>
@@ -512,6 +536,138 @@ function WebsiteUrlsPanel() {
           ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+function RankingReportsPanel() {
+  const [projects, setProjects] = useState([]);
+  const [filterProject, setFilterProject] = useState("");
+  const [rankingReports, setRankingReports] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 2;
+
+  useEffect(() => {
+    api.get("/admin/projects").then((res) => setProjects(res.data.projects));
+  }, []);
+
+  const load = () => {
+    if (!filterProject) {
+      setRankingReports([]);
+      setTotalPages(1);
+      return;
+    }
+    api
+      .get("/admin/ranking-reports", { params: { project: filterProject, page, limit: PAGE_SIZE } })
+      .then((res) => {
+        setRankingReports(res.data.rankingReports);
+        setTotalPages(res.data.totalPages);
+      });
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterProject]);
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterProject, page]);
+
+  const handleDelete = async (r) => {
+    const confirmed = window.confirm(
+      `Delete this ranking report submitted by ${r.submittedBy?.name || "this user"}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+    await api.delete(`/admin/ranking-reports/${r._id}`);
+    load();
+  };
+
+  const formatDate = (iso) =>
+    new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+  const formatTime = (iso) =>
+    new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <div className="w-64">
+          <Select label="Filter by project" value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
+            <option value="">Select a project…</option>
+            {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+          </Select>
+        </div>
+      </Card>
+
+      {!filterProject && (
+        <p className="text-sm text-ink/40">Select a project above to view its ranking reports.</p>
+      )}
+      {filterProject && rankingReports.length === 0 && (
+        <p className="text-sm text-ink/40">No ranking reports submitted for this project yet.</p>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {rankingReports.map((r) => (
+          <Card key={r._id} className="relative">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-ink">{r.submittedBy?.name || "—"}</p>
+                <p className="text-xs text-ink/40">{r.submittedBy?.loginId}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="flex flex-col items-end font-mono text-xs text-ink/50">
+                  <span>{formatDate(r.date)}</span>
+                  <span className="text-ink/40">{formatTime(r.createdAt)}</span>
+                </span>
+                <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => handleDelete(r)}>Delete</Button>
+              </div>
+            </div>
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line text-xs uppercase tracking-wide text-ink/40">
+                <tr>
+                  <th className="w-10 py-1.5 font-medium">Sr.No</th>
+                  <th className="py-1.5 font-medium">Keyword</th>
+                  <th className="w-32 py-1.5 font-medium">Current Ranking</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {r.entries.map((e, i) => (
+                  <tr key={e.keyword}>
+                    <td className="py-1.5 text-ink/50">{i + 1}</td>
+                    <td className="py-1.5 text-ink/80">{e.keyword}</td>
+                    <td className="py-1.5 font-mono text-xs text-accent">{e.rank}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        ))}
+      </div>
+
+      {filterProject && rankingReports.length > 0 && (
+        <div className="flex items-center justify-center gap-4">
+          <Button
+            variant="ghost"
+            className="!py-1.5 !px-4 text-xs"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <span className="text-xs text-ink/50">Page {page} of {totalPages}</span>
+          <Button
+            variant="ghost"
+            className="!py-1.5 !px-4 text-xs"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,6 +9,8 @@ const CATEGORY_OPTIONS = ["Blog Submission", "Image Submission", "Social Bookmar
 const TABS = [
   { id: "submit", label: "Submit Report" },
   { id: "history", label: "My Reports" },
+  { id: "ranking", label: "Ranking Report" },
+  { id: "rankingHistory", label: "My Ranking Reports" },
 ];
 
 export default function UserDashboard() {
@@ -52,6 +54,8 @@ export default function UserDashboard() {
 
         {tab === "submit" && <SubmitReportForm onSubmitted={() => setTab("history")} />}
         {tab === "history" && <MyReportsList />}
+        {tab === "ranking" && <RankingReportPanel />}
+        {tab === "rankingHistory" && <MyRankingReportsPanel />}
       </main>
     </div>
   );
@@ -272,5 +276,196 @@ function MyReportsList() {
         </tbody>
       </table>
     </Card>
+  );
+}
+
+function RankingReportPanel() {
+  const [projects, setProjects] = useState([]);
+  const [project, setProject] = useState("");
+  const [keywords, setKeywords] = useState([]);
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [ranks, setRanks] = useState({});
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.get("/user/projects").then((res) => setProjects(res.data.projects));
+  }, []);
+
+  useEffect(() => {
+    if (!project) {
+      setKeywords([]);
+      return;
+    }
+    api.get("/user/ranking-keywords", { params: { project } }).then((res) => {
+      setKeywords(res.data.keywords);
+      setRanks({});
+    });
+  }, [project]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(""); setSuccess(""); setBusy(true);
+    try {
+      const entries = keywords
+        .map((k) => ({ keyword: k, rank: (ranks[k] || "").trim() }))
+        .filter((e) => e.rank);
+
+      if (entries.length === 0) {
+        setError("Enter at least one rank value.");
+        setBusy(false);
+        return;
+      }
+
+      await api.post("/user/ranking-reports", { project, date, entries });
+      setSuccess("Ranking report submitted successfully.");
+      setRanks({});
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to submit ranking report");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <Select label="Project" value={project} onChange={(e) => setProject(e.target.value)} required>
+            <option value="">Select a project…</option>
+            {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+          </Select>
+
+          {project && (
+            <>
+              <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+
+              {keywords.length === 0 ? (
+                <p className="text-sm text-ink/40">This project has no keywords set up yet.</p>
+              ) : (
+                <div className="overflow-hidden rounded-md border border-line">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-line bg-surface/60 text-xs uppercase tracking-wide text-ink/50">
+                      <tr>
+                        <th className="w-14 px-3 py-2 font-medium">S.No</th>
+                        <th className="px-3 py-2 font-medium">Keyword</th>
+                        <th className="w-40 px-3 py-2 font-medium">Current Ranking</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {keywords.map((k, i) => (
+                        <tr key={k}>
+                          <td className="px-3 py-2 text-ink/60">{i + 1}</td>
+                          <td className="px-3 py-2 text-ink/80">{k}</td>
+                          <td className="px-3 py-2">
+                            <input
+                              className="focus-ring w-full rounded-md border border-line bg-white px-2 py-1 text-sm"
+                              placeholder="e.g. 4"
+                              inputMode="numeric"
+                              maxLength={2}
+                              value={ranks[k] || ""}
+                              onChange={(e) => {
+                                const digitsOnly = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+                                setRanks({ ...ranks, [k]: digitsOnly });
+                              }}
+                              required
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <ErrorText>{error}</ErrorText>
+              {success && <p className="rounded-md bg-good/10 px-3 py-2 text-sm text-good">{success}</p>}
+
+              <Button type="submit" variant="accent" className="w-full" disabled={busy || keywords.length === 0}>
+                {busy ? "Submitting…" : "Submit ranking report"}
+              </Button>
+            </>
+          )}
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function MyRankingReportsPanel() {
+  const [projects, setProjects] = useState([]);
+  const [project, setProject] = useState("");
+  const [rankingReports, setRankingReports] = useState([]);
+
+  useEffect(() => {
+    api.get("/user/projects").then((res) => setProjects(res.data.projects));
+  }, []);
+
+  useEffect(() => {
+    if (!project) {
+      setRankingReports([]);
+      return;
+    }
+    api.get("/user/ranking-reports", { params: { project, limit: 4 } }).then((res) => {
+      setRankingReports(res.data.rankingReports);
+    });
+  }, [project]);
+
+  const formatDate = (iso) =>
+    new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+  const formatTime = (iso) =>
+    new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <Select label="Project" value={project} onChange={(e) => setProject(e.target.value)}>
+          <option value="">Select a project…</option>
+          {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+        </Select>
+      </Card>
+
+      {!project && (
+        <p className="text-sm text-ink/40">Select a project above to view your last 4 ranking reports.</p>
+      )}
+      {project && rankingReports.length === 0 && (
+        <p className="text-sm text-ink/40">You haven't submitted any ranking reports for this project yet.</p>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {rankingReports.map((r) => (
+          <Card key={r._id}>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-medium text-ink">{r.project?.name || "—"}</p>
+              <span className="flex flex-col items-end font-mono text-xs text-ink/50">
+                <span>{formatDate(r.date)}</span>
+                <span className="text-ink/40">{formatTime(r.createdAt)}</span>
+              </span>
+            </div>
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-line text-xs uppercase tracking-wide text-ink/40">
+                <tr>
+                  <th className="w-10 py-1.5 font-medium">Sr.no</th>
+                  <th className="py-1.5 font-medium">Keyword</th>
+                  <th className="w-32 py-1.5 font-medium">Current Ranking</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {r.entries.map((e, i) => (
+                  <tr key={e.keyword}>
+                    <td className="py-1.5 text-ink/50">{i + 1}</td>
+                    <td className="py-1.5 text-ink/80">{e.keyword}</td>
+                    <td className="py-1.5 font-mono text-xs text-accent">{e.rank}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
