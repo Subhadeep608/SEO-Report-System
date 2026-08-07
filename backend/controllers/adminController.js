@@ -127,8 +127,16 @@ const parseKeywords = (raw) =>
     .map((k) => k.trim())
     .filter(Boolean);
 
-// @route POST /api/admin/website-urls
-// @desc  Admin adds a Website URL under a project, with its keyword list
+
+
+
+// Escapes regex special characters so a URL can be safely used in a $regex query
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Strips trailing slashes so "example.com/page" and "example.com/page/" are
+// treated as the same URL for storage and duplicate checks.
+const normalizeUrl = (raw) => (raw || "").trim().replace(/\/+$/, "");
+
 const createWebsiteUrl = async (req, res) => {
   try {
     const { project, url, keywords } = req.body;
@@ -140,9 +148,23 @@ const createWebsiteUrl = async (req, res) => {
       return res.status(404).json({ message: "Project not found" });
     }
 
+    const trimmedUrl = normalizeUrl(url);
+
+    // Prevent the same URL being added twice under the same project.
+    // Matches with or without a trailing slash, in case older records still have one.
+    const duplicate = await WebsiteUrl.findOne({
+      project,
+      url: { $regex: `^${escapeRegex(trimmedUrl)}/?$`, $options: "i" },
+    });
+    if (duplicate) {
+      return res.status(409).json({
+        message: "This URL has already been added for this project.",
+      });
+    }
+
     const websiteUrl = await WebsiteUrl.create({
       project,
-      url: url.trim(),
+      url: trimmedUrl,
       keywords: parseKeywords(keywords),
       createdBy: req.user._id,
     });
@@ -171,12 +193,28 @@ const getWebsiteUrls = async (req, res) => {
 const updateWebsiteUrl = async (req, res) => {
   try {
     const { url, keywords } = req.body;
+
+    const existing = await WebsiteUrl.findById(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Website URL not found" });
+
     const update = {};
-    if (url !== undefined) update.url = url.trim();
+    if (url !== undefined) {
+      const trimmedUrl = normalizeUrl(url);
+      const duplicate = await WebsiteUrl.findOne({
+        _id: { $ne: existing._id },
+        project: existing.project,
+        url: { $regex: `^${escapeRegex(trimmedUrl)}/?$`, $options: "i" },
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          message: "This URL has already been added for this project.",
+        });
+      }
+      update.url = trimmedUrl;
+    }
     if (keywords !== undefined) update.keywords = parseKeywords(keywords);
 
     const websiteUrl = await WebsiteUrl.findByIdAndUpdate(req.params.id, update, { new: true });
-    if (!websiteUrl) return res.status(404).json({ message: "Website URL not found" });
     res.json({ websiteUrl });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
@@ -210,7 +248,7 @@ const setWebsiteUrlStatus = async (req, res) => {
 
 const getReports = async (req, res) => {
   try {
-    const { project, user,websiteUrl, category, from, to } = req.query;
+    const { project, user, websiteUrl, category, from, to } = req.query;
     const filter = {};
     if (project) filter.project = project;
     if (user) filter.submittedBy = user;
