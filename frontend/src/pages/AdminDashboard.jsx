@@ -43,22 +43,26 @@ export default function AdminDashboard() {
 function ReportsPanel() {
   const [reports, setReports] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [websiteUrls, setWebsiteUrls] = useState([]);
-  const [filters, setFilters] = useState({ project: "", websiteUrl: "", category: "", from: "", to: "" });
+  const [filters, setFilters] = useState({ project: "", user: "", websiteUrl: "", category: "", from: "", to: "" });
 
   const load = async () => {
     const params = {};
     if (filters.project) params.project = filters.project;
+    if (filters.user) params.user = filters.user;
     if (filters.websiteUrl) params.websiteUrl = filters.websiteUrl;
     if (filters.category) params.category = filters.category;
     if (filters.from) params.from = filters.from;
     if (filters.to) params.to = filters.to;
-    const [reportsRes, projectsRes] = await Promise.all([
+    const [reportsRes, projectsRes, usersRes] = await Promise.all([
       api.get("/admin/reports", { params }),
       api.get("/admin/projects"),
+      api.get("/admin/users"),
     ]);
     setReports(reportsRes.data.reports);
     setProjects(projectsRes.data.projects);
+    setUsers(usersRes.data.users);
   };
 
   useEffect(() => {
@@ -117,6 +121,12 @@ function ReportsPanel() {
             <Select label="Filter by project" value={filters.project} onChange={(e) => setFilters({ ...filters, project: e.target.value })}>
               <option value="">All projects</option>
               {projects.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
+            </Select>
+          </div>
+          <div className="w-40">
+            <Select label="Filter by user" value={filters.user} onChange={(e) => setFilters({ ...filters, user: e.target.value })}>
+              <option value="">All users</option>
+              {users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}
             </Select>
           </div>
           <div className="w-56">
@@ -362,8 +372,12 @@ function ProjectsPanel() {
         <h2 className="font-display text-base font-semibold text-ink">Projects</h2>
         <div className="mt-4 divide-y divide-line">
           {projects.length === 0 && <p className="py-4 text-sm text-ink/40">No projects created yet.</p>}
-          {projects.map((p) => (
+          {projects.map((p, index) => (
             <div key={p._id} className="flex items-center justify-between py-3">
+              <div>
+                {/* Serial no */}
+                <p className="text-sm font-medium text-link/80">{index + 1}</p>
+              </div>
               <div>
                 <p className="text-sm font-medium text-ink">{p.name}</p>
                 {p.description && <p className="text-xs text-ink/40">{p.description}</p>}
@@ -518,6 +532,10 @@ function WebsiteUrlsPanel() {
                 </div>
               ) : (
                 <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink/80">{websiteUrls.indexOf(w) + 1}</p>
+                  </div>
+
                   <div className="min-w-0 flex-1">
                     <a href={w.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-accent hover:underline break-all">{w.url}</a>
                     <p className="mt-1 text-xs text-ink/50 break-words">
@@ -634,13 +652,15 @@ function RankingReportsPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {r.entries.map((e, i) => (
-                  <tr key={e.keyword}>
-                    <td className="py-1.5 text-ink/50">{i + 1}</td>
-                    <td className="py-1.5 text-ink/80">{e.keyword}</td>
-                    <td className="py-1.5 font-mono text-xs text-accent">{e.rank}</td>
-                  </tr>
-                ))}
+                {[...r.entries]
+                  .sort((a, b) => Number(a.rank) - Number(b.rank))
+                  .map((e, i) => (
+                    <tr key={e.keyword}>
+                      <td className="py-1.5 text-ink/50">{i + 1}</td>
+                      <td className="py-1.5 text-ink/80">{e.keyword}</td>
+                      <td className="py-1.5 font-mono text-xs text-accent">{e.rank}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </Card>
