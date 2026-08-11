@@ -7,7 +7,9 @@ const RankingReport = require("../models/RankingReport");
 // @route GET /api/user/projects
 const getActiveProjects = async (req, res) => {
   try {
-    const projects = await Project.find({ isActive: true }).select("name").sort({ name: 1 });
+    const projects = await Project.find({ isActive: true, assignedUsers: req.user._id })
+      .select("name")
+      .sort({ name: 1 });
     res.json({ projects });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
@@ -21,6 +23,10 @@ const getActiveWebsiteUrls = async (req, res) => {
     const { project } = req.query;
     if (!project) {
       return res.status(400).json({ message: "project query param is required" });
+    }
+    const projectDoc = await Project.findOne({ _id: project, isActive: true, assignedUsers: req.user._id });
+    if (!projectDoc) {
+      return res.status(404).json({ message: "Project not found or not assigned to you" });
     }
     const websiteUrls = await WebsiteUrl.find({ project, isActive: true })
       .select("url keywords")
@@ -46,8 +52,12 @@ const submitReport = async (req, res) => {
     if (!projectDoc || !projectDoc.isActive) {
       return res.status(404).json({ message: "Project not found or inactive" });
     }
+    if (!projectDoc.assignedUsers.some((u) => u.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: "You are not assigned to this project" });
+    }
 
     const websiteUrlDoc = await WebsiteUrl.findOne({ _id: websiteUrl, project, isActive: true });
+
     if (!websiteUrlDoc) {
       return res.status(404).json({ message: "Website URL not found or inactive" });
     }
@@ -126,7 +136,12 @@ const getRankingKeywords = async (req, res) => {
     if (!project) {
       return res.status(400).json({ message: "project query param is required" });
     }
+    const projectDoc = await Project.findOne({ _id: project, isActive: true, assignedUsers: req.user._id });
+    if (!projectDoc) {
+      return res.status(404).json({ message: "Project not found or not assigned to you" });
+    }
     const websiteUrls = await WebsiteUrl.find({ project, isActive: true }).select("keywords");
+
     const keywordSet = new Set();
     websiteUrls.forEach((w) => w.keywords.forEach((k) => keywordSet.add(k)));
     const keywords = Array.from(keywordSet).sort((a, b) => a.localeCompare(b));
@@ -147,6 +162,9 @@ const submitRankingReport = async (req, res) => {
     const projectDoc = await Project.findById(project);
     if (!projectDoc || !projectDoc.isActive) {
       return res.status(404).json({ message: "Project not found or inactive" });
+    }
+    if (!projectDoc.assignedUsers.some((u) => u.toString() === req.user._id.toString())) {
+      return res.status(403).json({ message: "You are not assigned to this project" });
     }
 
     const cleanEntries = entries

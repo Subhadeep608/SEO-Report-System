@@ -7,6 +7,8 @@ const {
   setUserStatus,
   deleteUser,
   createProject,
+  updateProject,
+  updateProjectAssignedUsers,
   getProjects,
   setProjectStatus,
   deleteProject,
@@ -31,6 +33,8 @@ router.delete("/users/:id", deleteUser);
 
 router.post("/projects", createProject);
 router.get("/projects", getProjects);
+router.patch("/projects/:id", updateProject);
+router.patch("/projects/:id/assigned-users", updateProjectAssignedUsers);
 router.patch("/projects/:id/status", setProjectStatus);
 router.delete("/projects/:id", deleteProject);
 

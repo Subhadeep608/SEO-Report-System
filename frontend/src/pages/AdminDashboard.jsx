@@ -313,13 +313,21 @@ function UsersPanel() {
 
 function ProjectsPanel() {
   const [projects, setProjects] = useState([]);
-  const [form, setForm] = useState({ name: "", description: "" });
+  const [users, setUsers] = useState([]);
+  const [form, setForm] = useState({ name: "", description: "", assignedUsers: [] });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ name: "", description: "" });
+  const [editError, setEditError] = useState("");
 
   const load = async () => {
-    const res = await api.get("/admin/projects");
-    setProjects(res.data.projects);
+    const [projectsRes, usersRes] = await Promise.all([
+      api.get("/admin/projects"),
+      api.get("/admin/users"),
+    ]);
+    setProjects(projectsRes.data.projects);
+    setUsers(usersRes.data.users);
   };
 
   useEffect(() => { load(); }, []);
@@ -329,13 +337,22 @@ function ProjectsPanel() {
     setError(""); setBusy(true);
     try {
       await api.post("/admin/projects", form);
-      setForm({ name: "", description: "" });
+      setForm({ name: "", description: "", assignedUsers: [] });
       load();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create project");
     } finally {
       setBusy(false);
     }
+  };
+
+  const toggleFormUser = (userId) => {
+    setForm((f) => ({
+      ...f,
+      assignedUsers: f.assignedUsers.includes(userId)
+        ? f.assignedUsers.filter((id) => id !== userId)
+        : [...f.assignedUsers, userId],
+    }));
   };
 
   const toggleStatus = async (p) => {
@@ -352,6 +369,37 @@ function ProjectsPanel() {
     load();
   };
 
+  const toggleProjectUser = async (project, userId) => {
+    const currentIds = project.assignedUsers.map((u) => u._id);
+    const newIds = currentIds.includes(userId)
+      ? currentIds.filter((id) => id !== userId)
+      : [...currentIds, userId];
+    await api.patch(`/admin/projects/${project._id}/assigned-users`, { assignedUsers: newIds });
+    load();
+  };
+
+  const startEdit = (p) => {
+    setEditingId(p._id);
+    setEditDraft({ name: p.name, description: p.description || "" });
+    setEditError("");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditDraft({ name: "", description: "" });
+    setEditError("");
+  };
+
+  const saveEdit = async (id) => {
+    setEditError("");
+    try {
+      await api.patch(`/admin/projects/${id}`, editDraft);
+      setEditingId(null);
+      load();
+    } catch (err) {
+      setEditError(err.response?.data?.message || "Failed to update project");
+    }
+  };
 
   return (
     <div className="grid gap-8 lg:grid-cols-5">
@@ -363,6 +411,33 @@ function ProjectsPanel() {
         <form onSubmit={handleCreate} className="mt-5 space-y-4">
           <Input label="Project name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           <Input label="Description (optional)" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+
+          <div>
+            <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink/60">
+              Assign users (optional)
+            </span>
+            {users.length === 0 ? (
+              <p className="text-sm text-ink/40">No users created yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {users.map((u) => (
+                  <button
+                    key={u._id}
+                    type="button"
+                    onClick={() => toggleFormUser(u._id)}
+                    className={`rounded-full border px-3 py-1 text-xs transition ${
+                      form.assignedUsers.includes(u._id)
+                        ? "border-accent bg-accent/10 text-accent"
+                        : "border-line text-ink/60 hover:bg-line/40"
+                    }`}
+                  >
+                    {u.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <ErrorText>{error}</ErrorText>
           <Button type="submit" variant="accent" className="w-full" disabled={busy}>{busy ? "Creating…" : "Create project"}</Button>
         </form>
@@ -372,23 +447,74 @@ function ProjectsPanel() {
         <h2 className="font-display text-base font-semibold text-ink">Projects</h2>
         <div className="mt-4 divide-y divide-line">
           {projects.length === 0 && <p className="py-4 text-sm text-ink/40">No projects created yet.</p>}
-          {projects.map((p, index) => (
-            <div key={p._id} className="flex items-center justify-between py-3">
-              <div>
-                {/* Serial no */}
-                <p className="text-sm font-medium text-link/80">{index + 1}</p>
+          {projects.map((p, index) => {
+            const assignedIds = p.assignedUsers.map((u) => u._id);
+            const isEditing = editingId === p._id;
+            return (
+              <div key={p._id} className="py-3">
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <Input
+                      label="Project name"
+                      value={editDraft.name}
+                      onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                    />
+                    <Input
+                      label="Description (optional)"
+                      value={editDraft.description}
+                      onChange={(e) => setEditDraft({ ...editDraft, description: e.target.value })}
+                    />
+                    <ErrorText>{editError}</ErrorText>
+                    <div className="flex gap-2">
+                      <Button variant="accent" className="!py-1.5 !px-3 text-xs" onClick={() => saveEdit(p._id)}>Save</Button>
+                      <Button variant="ghost" className="!py-1.5 !px-3 text-xs" onClick={cancelEdit}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* Serial no */}
+                      <p className="w-5 text-sm font-medium text-ink/40">{index + 1}</p>
+                      <div>
+                        <p className="text-sm font-medium text-ink">{p.name}</p>
+                        {p.description && <p className="text-xs text-ink/40">{p.description}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge tone={p.isActive ? "good" : "warn"}>{p.isActive ? "active" : "disabled"}</Badge>
+                      <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => startEdit(p)}>Edit</Button>
+                      <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => toggleStatus(p)}>{p.isActive ? "Disable" : "Enable"}</Button>
+                      <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => handleDelete(p)}>Delete</Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-2 pl-8">
+                  <p className="mb-1 text-xs text-ink/40">Assigned users:</p>
+                  {users.length === 0 ? (
+                    <p className="text-xs text-ink/30">No users created yet.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {users.map((u) => (
+                        <button
+                          key={u._id}
+                          type="button"
+                          onClick={() => toggleProjectUser(p, u._id)}
+                          className={`rounded-full border px-3 py-1 text-xs transition ${
+                            assignedIds.includes(u._id)
+                              ? "border-accent bg-accent/10 text-accent"
+                              : "border-line text-ink/50 hover:bg-line/40"
+                          }`}
+                        >
+                          {u.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-ink">{p.name}</p>
-                {p.description && <p className="text-xs text-ink/40">{p.description}</p>}
-              </div>
-              <div className="flex items-center gap-3">
-                <Badge tone={p.isActive ? "good" : "warn"}>{p.isActive ? "active" : "disabled"}</Badge>
-                <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => toggleStatus(p)}>{p.isActive ? "Disable" : "Enable"}</Button>
-                <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => handleDelete(p)}>Delete</Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
     </div>

@@ -69,13 +69,14 @@ const deleteUser = async (req, res) => {
 
 const createProject = async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, assignedUsers } = req.body;
     if (!name) {
       return res.status(400).json({ message: "name is required" });
     }
     const project = await Project.create({
       name,
       description: description || "",
+      assignedUsers: Array.isArray(assignedUsers) ? assignedUsers : [],
       createdBy: req.user._id,
     });
     res.status(201).json({ project });
@@ -84,10 +85,57 @@ const createProject = async (req, res) => {
   }
 };
 
+// @route PATCH /api/admin/projects/:id
+// @desc  Admin edits a project's name and/or description
+const updateProject = async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    const update = {};
+    if (name !== undefined) {
+      if (!name.trim()) {
+        return res.status(400).json({ message: "name cannot be empty" });
+      }
+      update.name = name.trim();
+    }
+    if (description !== undefined) update.description = description;
+
+    const project = await Project.findByIdAndUpdate(req.params.id, update, { new: true }).populate(
+      "assignedUsers",
+      "name loginId"
+    );
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    res.json({ project });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
 const getProjects = async (req, res) => {
   try {
-    const projects = await Project.find().sort({ createdAt: -1 });
+    const projects = await Project.find()
+      .populate("assignedUsers", "name loginId")
+      .sort({ createdAt: -1 });
     res.json({ projects });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route PATCH /api/admin/projects/:id/assigned-users
+// @desc  Admin decides which Users can see/work on this project
+const updateProjectAssignedUsers = async (req, res) => {
+  try {
+    const { assignedUsers } = req.body;
+    if (!Array.isArray(assignedUsers)) {
+      return res.status(400).json({ message: "assignedUsers must be an array of user IDs" });
+    }
+    const project = await Project.findByIdAndUpdate(
+      req.params.id,
+      { assignedUsers },
+      { new: true }
+    ).populate("assignedUsers", "name loginId");
+    if (!project) return res.status(404).json({ message: "Project not found" });
+    res.json({ project });
   } catch (err) {
     res.status(500).json({ message: "Server error", error: err.message });
   }
@@ -375,6 +423,8 @@ module.exports = {
   setUserStatus,
   deleteUser,
   createProject,
+  updateProject,
+  updateProjectAssignedUsers,
   getProjects,
   setProjectStatus,
   deleteProject,

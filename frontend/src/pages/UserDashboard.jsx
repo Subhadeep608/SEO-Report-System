@@ -113,7 +113,7 @@ function SubmitReportForm() {
         workingUrl: form.workingUrl,
       });
       setSuccess("Report submitted successfully.");
-      setForm({ project: form.project, websiteUrl: "", keyword: "", category: "", workingUrl: "" });
+      // setForm({ project: form.project, websiteUrl: "", keyword: "", category: "", workingUrl: "" });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to submit report");
     } finally {
