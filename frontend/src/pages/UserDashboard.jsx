@@ -11,6 +11,7 @@ const TABS = [
   { id: "history", label: "My Reports" },
   { id: "ranking", label: "Ranking Report" },
   { id: "rankingHistory", label: "My Ranking Reports" },
+  { id: "myLists", label: "My Lists" },
 ];
 
 export default function UserDashboard() {
@@ -56,6 +57,7 @@ export default function UserDashboard() {
         {tab === "history" && <MyReportsList />}
         {tab === "ranking" && <RankingReportPanel />}
         {tab === "rankingHistory" && <MyRankingReportsPanel />}
+        {tab === "myLists" && <MyListsPanel />}
       </main>
     </div>
   );
@@ -466,6 +468,143 @@ function MyRankingReportsPanel() {
           </Card>
         ))}
       </div>
+    </div>
+  );
+}
+
+function MyListsPanel() {
+  const [form, setForm] = useState({ category: "", url: "", loginId: "", password: "" });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const [filterCategory, setFilterCategory] = useState("");
+  const [entries, setEntries] = useState([]);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState({ category: "", url: "", loginId: "", password: "" });
+  const [editError, setEditError] = useState("");
+
+  const load = () => {
+    const params = {};
+    if (filterCategory) params.category = filterCategory;
+    api.get("/user/list-entries", { params }).then((res) => setEntries(res.data.listEntries));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCategory]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    setError(""); setSuccess(""); setBusy(true);
+    try {
+      await api.post("/user/list-entries", form);
+      setForm({ category: form.category, url: "", loginId: "", password: "" });
+      setSuccess("Saved successfully.");
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const togglePassword = (id) => {
+    setVisiblePasswords((v) => ({ ...v, [id]: !v[id] }));
+  };
+
+  const startEdit = (entry) => {
+    setEditingId(entry._id);
+    setEditDraft({ category: entry.category, url: entry.url, loginId: entry.loginId, password: entry.password });
+    setEditError("");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditError("");
+  };
+
+  const saveEdit = async (id) => {
+    setEditError("");
+    try {
+      await api.patch(`/user/list-entries/${id}`, editDraft);
+      setEditingId(null);
+      load();
+    } catch (err) {
+      setEditError(err.response?.data?.message || "Failed to update");
+    }
+  };
+
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-5">
+      <Card className="lg:col-span-2 h-fit">
+        <h2 className="font-display text-base font-semibold text-ink">Add to My Lists</h2>
+        <form onSubmit={handleCreate} className="mt-5 space-y-4">
+          <Select label="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} required>
+            <option value="">Select a category…</option>
+            {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+          </Select>
+          <Input label="URL" type="url" placeholder="https://…" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} required />
+          <Input label="ID" placeholder="Login ID / username" value={form.loginId} onChange={(e) => setForm({ ...form, loginId: e.target.value })} required />
+          <Input label="Password" type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+          <ErrorText>{error}</ErrorText>
+          {success && <p className="rounded-md bg-good/10 px-3 py-2 text-sm text-good">{success}</p>}
+          <Button type="submit" variant="accent" className="w-full" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+        </form>
+      </Card>
+
+      <Card className="lg:col-span-3 !p-0 overflow-hidden">
+        <div className="border-b border-line px-6 py-4">
+          <div className="w-56">
+            <Select label="Filter by category" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+              <option value="">All categories</option>
+              {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+        </div>
+        <div className="divide-y divide-line">
+          {entries.length === 0 && <p className="px-6 py-6 text-sm text-ink/40">Nothing saved yet.</p>}
+          {entries.map((e) => (
+            <div key={e._id} className="px-6 py-4">
+              {editingId === e._id ? (
+                <div className="space-y-3">
+                  <Select label="Category" value={editDraft.category} onChange={(ev) => setEditDraft({ ...editDraft, category: ev.target.value })}>
+                    {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </Select>
+                  <Input label="URL" type="url" value={editDraft.url} onChange={(ev) => setEditDraft({ ...editDraft, url: ev.target.value })} />
+                  <Input label="ID" value={editDraft.loginId} onChange={(ev) => setEditDraft({ ...editDraft, loginId: ev.target.value })} />
+                  <Input label="Password" type="text" value={editDraft.password} onChange={(ev) => setEditDraft({ ...editDraft, password: ev.target.value })} />
+                  <ErrorText>{editError}</ErrorText>
+                  <div className="flex gap-2">
+                    <Button variant="accent" className="!py-1.5 !px-3 text-xs" onClick={() => saveEdit(e._id)}>Save</Button>
+                    <Button variant="ghost" className="!py-1.5 !px-3 text-xs" onClick={cancelEdit}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">{e.category}</span>
+                    <Button variant="ghost" className="!py-1 !px-3 text-xs" onClick={() => startEdit(e)}>Edit</Button>
+                  </div>
+                  <a href={e.url} target="_blank" rel="noreferrer" className="mt-1 block truncate text-sm font-medium text-accent hover:underline">{e.url}</a>
+                  <div className="mt-1 flex items-center gap-4 text-xs text-ink/60">
+                    <span>ID: <span className="font-mono">{e.loginId}</span></span>
+                    <span className="flex items-center gap-1">
+                      Password: <span className="font-mono">{visiblePasswords[e._id] ? e.password : "••••••••"}</span>
+                      <button type="button" onClick={() => togglePassword(e._id)} className="text-accent hover:underline">
+                        {visiblePasswords[e._id] ? "hide" : "show"}
+                      </button>
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }

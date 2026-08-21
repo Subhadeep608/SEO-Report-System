@@ -4,6 +4,8 @@ const WebsiteUrl = require("../models/WebsiteUrl");
 const Report = require("../models/Report");
 const RankingReport = require("../models/RankingReport");
 const XLSX = require("xlsx");
+const ListEntry = require("../models/ListEntry");
+
 
 // ---------- Users ----------
 
@@ -417,6 +419,32 @@ const deleteRankingReport = async (req, res) => {
   }
 };
 
+
+
+
+// @route GET /api/admin/list-entries?category=<optional>&user=<optional>
+// @desc  All list entries across all users, filterable by category and/or user
+const getAllListEntries = async (req, res) => {
+  try {
+    const { category, user } = req.query;
+    const filter = {};
+    if (category) filter.category = category;
+    if (user) filter.createdBy = user;
+
+    const listEntries = await ListEntry.find(filter)
+      .populate("createdBy", "name loginId")
+      .sort({ createdAt: -1 });
+    res.json({ listEntries });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
+
+
+
+
 module.exports = {
   createUser,
   getUsers,
@@ -438,4 +466,5 @@ module.exports = {
   exportReports,
   getRankingReports,
   deleteRankingReport,
+  getAllListEntries,
 };

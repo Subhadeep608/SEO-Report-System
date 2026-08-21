@@ -2,7 +2,7 @@ const Project = require("../models/Project");
 const WebsiteUrl = require("../models/WebsiteUrl");
 const Report = require("../models/Report");
 const RankingReport = require("../models/RankingReport");
-
+const ListEntry = require("../models/ListEntry");
 
 // @route GET /api/user/projects
 const getActiveProjects = async (req, res) => {
@@ -215,6 +215,69 @@ const getMyRankingReports = async (req, res) => {
   }
 };
 
+// My-List 
+// @route POST /api/user/list-entries
+const createListEntry = async (req, res) => {
+  try {
+    const { category, url, loginId, password } = req.body;
+    if (!category || !url || !loginId || !password) {
+      return res.status(400).json({ message: "category, url, loginId, and password are required" });
+    }
+
+    const listEntry = await ListEntry.create({
+      category: category.trim(),
+      url: url.trim(),
+      loginId: loginId.trim(),
+      password,
+      createdBy: req.user._id,
+      createdByName: req.user.name,
+    });
+
+    res.status(201).json({ message: "Saved successfully", listEntry });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route GET /api/user/list-entries?category=<optional>
+// @desc  This user's own saved list entries, optionally filtered by category
+const getMyListEntries = async (req, res) => {
+  try {
+    const { category } = req.query;
+    const filter = { createdBy: req.user._id };
+    if (category) filter.category = category;
+
+    const listEntries = await ListEntry.find(filter).sort({ createdAt: -1 });
+    res.json({ listEntries });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// @route PATCH /api/user/list-entries/:id
+// @desc  User edits their own saved list entry
+const updateListEntry = async (req, res) => {
+  try {
+    const { category, url, loginId, password } = req.body;
+    const update = {};
+    if (category !== undefined) update.category = category.trim();
+    if (url !== undefined) update.url = url.trim();
+    if (loginId !== undefined) update.loginId = loginId.trim();
+    if (password !== undefined) update.password = password;
+
+    const listEntry = await ListEntry.findOneAndUpdate(
+      { _id: req.params.id, createdBy: req.user._id },
+      update,
+      { new: true }
+    );
+    if (!listEntry) return res.status(404).json({ message: "Entry not found" });
+    res.json({ listEntry });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+
 module.exports = {
   getActiveProjects,
   getActiveWebsiteUrls,
@@ -223,4 +286,7 @@ module.exports = {
   getRankingKeywords,
   submitRankingReport,
   getMyRankingReports,
+  createListEntry,
+  getMyListEntries,
+  updateListEntry,
 };

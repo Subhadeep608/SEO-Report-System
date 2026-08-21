@@ -9,6 +9,9 @@ const {
   getRankingKeywords,
   submitRankingReport,
   getMyRankingReports,
+  createListEntry,
+  getMyListEntries,
+  updateListEntry,
 } = require("../controllers/userController");
 
 router.use(protect, authorize("user"));
@@ -22,5 +25,8 @@ router.get("/ranking-keywords", getRankingKeywords);
 router.post("/ranking-reports", submitRankingReport);
 router.get("/ranking-reports", getMyRankingReports);
 
+router.post("/list-entries", createListEntry);
+router.get("/list-entries", getMyListEntries);
+router.patch("/list-entries/:id", updateListEntry);
 
 module.exports = router;

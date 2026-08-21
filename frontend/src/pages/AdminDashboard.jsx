@@ -11,6 +11,7 @@ const TABS = [
   { id: "projects", label: "Projects" },
   { id: "websiteUrls", label: "Website URLs" },
   { id: "rankingReports", label: "Ranking Reports" },
+  { id: "allLists", label: "All Lists" },
 ];
 
 export default function AdminDashboard() {
@@ -36,6 +37,7 @@ export default function AdminDashboard() {
       {tab === "projects" && <ProjectsPanel />}
       {tab === "websiteUrls" && <WebsiteUrlsPanel />}
       {tab === "rankingReports" && <RankingReportsPanel />}
+      {tab === "allLists" && <AllListsPanel />}
     </DashboardLayout>
   );
 }
@@ -425,11 +427,10 @@ function ProjectsPanel() {
                     key={u._id}
                     type="button"
                     onClick={() => toggleFormUser(u._id)}
-                    className={`rounded-full border px-3 py-1 text-xs transition ${
-                      form.assignedUsers.includes(u._id)
+                    className={`rounded-full border px-3 py-1 text-xs transition ${form.assignedUsers.includes(u._id)
                         ? "border-accent bg-accent/10 text-accent"
                         : "border-line text-ink/60 hover:bg-line/40"
-                    }`}
+                      }`}
                   >
                     {u.name}
                   </button>
@@ -500,11 +501,10 @@ function ProjectsPanel() {
                           key={u._id}
                           type="button"
                           onClick={() => toggleProjectUser(p, u._id)}
-                          className={`rounded-full border px-3 py-1 text-xs transition ${
-                            assignedIds.includes(u._id)
+                          className={`rounded-full border px-3 py-1 text-xs transition ${assignedIds.includes(u._id)
                               ? "border-accent bg-accent/10 text-accent"
                               : "border-line text-ink/50 hover:bg-line/40"
-                          }`}
+                            }`}
                         >
                           {u.name}
                         </button>
@@ -814,6 +814,92 @@ function RankingReportsPanel() {
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+
+function AllListsPanel() {
+  const [users, setUsers] = useState([]);
+  const [filters, setFilters] = useState({ category: "", user: "" });
+  const [entries, setEntries] = useState([]);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
+  useEffect(() => {
+    api.get("/admin/users").then((res) => setUsers(res.data.users));
+  }, []);
+
+  const load = () => {
+    const params = {};
+    if (filters.category) params.category = filters.category;
+    if (filters.user) params.user = filters.user;
+    api.get("/admin/list-entries", { params }).then((res) => setEntries(res.data.listEntries));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  const togglePassword = (id) => {
+    setVisiblePasswords((v) => ({ ...v, [id]: !v[id] }));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="w-56">
+            <Select label="Filter by category" value={filters.category} onChange={(e) => setFilters({ ...filters, category: e.target.value })}>
+              <option value="">All categories</option>
+              {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </div>
+          <div className="w-56">
+            <Select label="Filter by user" value={filters.user} onChange={(e) => setFilters({ ...filters, user: e.target.value })}>
+              <option value="">All users</option>
+              {users.map((u) => <option key={u._id} value={u._id}>{u.name}</option>)}
+            </Select>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="!p-0 overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-line bg-surface/60 text-xs uppercase tracking-wide text-ink/50">
+            <tr>
+              <th className="px-4 py-3 font-medium">User</th>
+              <th className="px-4 py-3 font-medium">Category</th>
+              <th className="px-4 py-3 font-medium">URL</th>
+              <th className="px-4 py-3 font-medium">ID</th>
+              <th className="px-4 py-3 font-medium">Password</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {entries.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-ink/40">No lists found.</td></tr>
+            )}
+            {entries.map((e) => (
+              <tr key={e._id}>
+                <td className="px-4 py-3 font-medium text-ink">{e.createdBy?.name || e.createdByName}</td>
+                <td className="px-4 py-3"><span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">{e.category}</span></td>
+                <td className="px-4 py-3">
+                  <a href={e.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">{e.url}</a>
+                </td>
+                <td className="px-4 py-3 font-mono text-xs text-ink/70">{e.loginId}</td>
+                <td className="px-4 py-3">
+                  <span className="flex items-center gap-2 font-mono text-xs text-ink/70">
+                    {visiblePasswords[e._id] ? e.password : "••••••••"}
+                    <button type="button" onClick={() => togglePassword(e._id)} className="text-accent hover:underline">
+                      {visiblePasswords[e._id] ? "hide" : "show"}
+                    </button>
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
     </div>
   );
 }
